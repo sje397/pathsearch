@@ -52,6 +52,10 @@ class AStarWin : public QMainWindow
                 return Vec2d(x - v.x, y - v.y);
             }
 
+            double dot(const Vec2d& v) const {
+                return x * v.x + y * v.y;
+            }
+
             double distanceSquared(const Vec2d& v) const {
                 return (v.x - x) * (v.x - x) + (v.y - y) * (v.y - y);
             }
@@ -86,7 +90,6 @@ class AStarWin : public QMainWindow
                 if(parent) {
                     length = parent->length + 1;
                     parent->children.append(this);
-                    sumCurve += parent->sumCurve;
                 }
             }
 
@@ -95,7 +98,7 @@ class AStarWin : public QMainWindow
             }
 
             PathNode* turn(double angle) {
-                return new PathNode(Pose(*this + dir, dir.angle() + angle), std::fabs(angle), this);
+                return new PathNode(Pose(*this + dir, dir.angle() + angle), sumCurve + std::fabs(angle), this);
             }
         };
 

@@ -3,8 +3,9 @@
 
 #include <QPainter>
 
-#define WORLDX  40
-#define WORLDY  40
+#define WORLDX  30
+
+#define MIN_DIST 0.05
 
 AStarWin::AStarWin(QWidget *parent) :
     QMainWindow(parent),
@@ -18,13 +19,13 @@ AStarWin::AStarWin(QWidget *parent) :
     target = Pose(Vec2d( 10, -10), -M_PI/4);
 
     obstacles.append(Obstacle(Vec2d(0, 0), 7.0));
-    obstacles.append(Obstacle(Vec2d(13, -9), 2.83));
-    obstacles.append(Obstacle(Vec2d(9, -13), 2.83));
+    obstacles.append(Obstacle(Vec2d(13, -9), 2.95));
+    obstacles.append(Obstacle(Vec2d(9, -13), 2.95));
 
     paths.append(ScoredPath(0, root = new PathNode(source, 0)));
 
     timer = new QTimer(this);
-    timer->setInterval(1);
+    timer->setInterval(0);
     connect(timer, SIGNAL(timeout()), this, SLOT(updateSearch()));
     timer->start();
 }
@@ -38,29 +39,35 @@ AStarWin::~AStarWin()
 void AStarWin::updateSearch()
 {
     ScoredPath sp = paths.first();
-    if((sp.second->dir + *sp.second).distance(target) < 0.2 && std::fabs(sp.second->angle() - target.dir.angle()) < M_PI/16)
+
+    if(sp.second->distance(target) < 0.2 && std::acos(sp.second->dir.dot(target.dir)) < M_PI/32)
+    {
         timer->stop();
+        return;
+    }
 
     paths.pop_front();
 
-    PathNode* n[2] = {
-        sp.second->turn(-M_PI/8),
-        //sp.second->turn(0),
-        sp.second->turn(M_PI/8)
+    PathNode* n[3] = {
+        sp.second->turn(-M_PI/16),
+        sp.second->turn(0),
+        sp.second->turn(M_PI/16)
     };
 
     bool valid[3] = {true, true, true};
 
-    foreach(const Obstacle& o, obstacles) {
-        for(int i = 0; i < 2; ++i)
-            if((n[i]->dir + *n[i]).distanceSquared(o) < o.radius * o.radius)
+    for(int i = 0; i < 3; ++i) {
+        foreach(const ScoredPath& sn, paths) {
+            if((n[i]->dir + *n[i]).distanceSquared(sn.second->dir + *sn.second) < MIN_DIST * MIN_DIST)
                 valid[i] = false;
-    }
-
-    for(int i = 0; i < 2; ++i) {
-        if(valid[i]) {
-            paths.append(ScoredPath(score(n[i]), n[i]));
         }
+
+        if(valid[i])
+            foreach(const Obstacle& o, obstacles)
+                if(n[i]->distanceSquared(o) < o.radius * o.radius)
+                    valid[i] = false;
+
+        if(valid[i]) paths.append(ScoredPath(score(n[i]), n[i]));
     }
     std::sort(paths.begin(), paths.end());
     update();
@@ -68,7 +75,7 @@ void AStarWin::updateSearch()
 
 QPoint AStarWin::vec2point(const AStarWin::Vec2d &v) const
 {
-    const int w = width(), h = height();
+    const int w = width(), h = height(), WORLDY = (WORLDX * h / w);
     const int x = w/2.0 + v.x / WORLDX * w/2.0;
     const int y = h/2.0 - v.y / WORLDY * h/2.0;
 
@@ -77,8 +84,8 @@ QPoint AStarWin::vec2point(const AStarWin::Vec2d &v) const
 
 double AStarWin::score(const AStarWin::PathNode* n) const
 {
-    return //n->length + 1 +
-            (n->dir + *n).distance(target) + n->sumCurve / (M_PI);
+    return n->length +
+            n->distance(target);// + n->sumCurve / (M_PI);
 }
 
 
@@ -89,7 +96,7 @@ QMenu *AStarWin::createPopupMenu()
 
 void AStarWin::paintEvent(QPaintEvent *)
 {
-    const int w = width(), h = height();
+    const int w = width(), h = height(), WORLDY = (WORLDX * h / w);
 
     QPainter painter(this);
     painter.fillRect(rect(), Qt::black);
